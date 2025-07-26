@@ -5,14 +5,6 @@ export interface LineAnalysis {
   reasons: string[];
 }
 
-export interface AIBlock {
-  startLine: number;
-  endLine: number;
-  confidenceLevel: 'Strongly AI' | 'Moderate AI' | 'Likely AI' | 'Uncertain' | 'Likely Human' | 'Strongly Human';
-  confidence: number;
-  reasons: string[];
-}
-
 export interface AnalysisResult {
   totalLines: number;
   aiLines: number;
@@ -21,7 +13,6 @@ export interface AnalysisResult {
   humanPercentage: number;
   overallConfidence: number;
   lineAnalysis: LineAnalysis[];
-  aiBlocks: AIBlock[];
 }
 
 interface DetectionPattern {
@@ -31,136 +22,112 @@ interface DetectionPattern {
   aiIndicator: boolean;
 }
 
-// Enhanced AI detection patterns with higher accuracy
+// AI detection patterns based on real AI vs human coding characteristics
 const AI_PATTERNS: DetectionPattern[] = [
   // Step-by-step comments (very common in AI code)
   {
-    pattern: /\/\/\s*Step\s*\d+:|\/\/\s*\d+\.|#\s*Step\s*\d+:|#\s*\d+\./gi,
-    weight: 0.9,
+    pattern: /\/\/\s*Step\s*\d+:|\/\/\s*\d+\./gi,
+    weight: 0.8,
     reason: "Contains step-by-step comments typical of AI explanations",
     aiIndicator: true
   },
   
   // Overly descriptive comments explaining obvious code
   {
-    pattern: /#\s*(Loop through|Track if|Last.*elements|Swap if|If no|Example usage|Original|Sorted)/gi,
-    weight: 0.8,
+    pattern: /\/\/\s*(Get|Parse|Check|Validate|Perform|Display|Calculate|Initialize).*$/gm,
+    weight: 0.6,
     reason: "Contains verbose explanatory comments typical of AI generation",
     aiIndicator: true
   },
   
-  // Perfect example usage patterns (AI loves to add examples)
+  // Generic error messages with examples
   {
-    pattern: /(Example usage|if __name__ == "__main__":|# Example|\/\/ Example)/gi,
-    weight: 0.9,
-    reason: "Contains structured example usage typical of AI tutorials",
-    aiIndicator: true
-  },
-  
-  // AI's love for optimization comments
-  {
-    pattern: /#.*already (in place|sorted)|#.*optimization|#.*efficient/gi,
-    weight: 0.8,
-    reason: "Contains optimization comments typical of AI explanations",
-    aiIndicator: true
-  },
-  
-  // Perfect variable naming for tutorials
-  {
-    pattern: /\b(nums|arr|swapped|sorted_nums)\b/gi,
+    pattern: /(Usage:|Example:|Error:).*$/gm,
     weight: 0.7,
-    reason: "Uses educational variable names typical of AI tutorials",
+    reason: "Contains structured error messages with examples",
     aiIndicator: true
   },
   
-  // AI's perfect print statements with labels
+  // Perfect input validation patterns
   {
-    pattern: /print\s*\(\s*["']Original:|print\s*\(\s*["']Sorted:/gi,
-    weight: 0.9,
-    reason: "Contains labeled output statements typical of AI examples",
+    pattern: /(process\.exit\(1\)|isNaN\(|\.length\s*[!=]=|args\.length)/g,
+    weight: 0.5,
+    reason: "Contains comprehensive input validation typical of AI",
     aiIndicator: true
   },
   
-  // Perfect function structure with return
+  // Overly descriptive variable names
   {
-    pattern: /def\s+\w+\s*\([^)]*\):\s*\n.*return/s,
+    pattern: /\b(commandLineArguments|userInput|calculationResult|operatorSymbol)\b/gi,
     weight: 0.6,
-    reason: "Contains complete function with proper return statement",
+    reason: "Uses overly descriptive variable names",
     aiIndicator: true
   },
   
-  // AI's tendency for comprehensive if-else structures
+  // Perfect switch/case structure with all cases
   {
-    pattern: /if.*:\s*\n.*else:\s*\n.*break/gs,
-    weight: 0.7,
-    reason: "Contains comprehensive conditional logic typical of AI",
+    pattern: /switch\s*\([^)]+\)\s*{[\s\S]*default:\s*[\s\S]*}/g,
+    weight: 0.4,
+    reason: "Contains comprehensive switch statement with default case",
     aiIndicator: true
   },
   
-  // Perfect indentation consistency (AI signature)
+  // AI-style shebang and perfect formatting
   {
-    pattern: /^    [a-zA-Z]/gm,
+    pattern: /^#!/,
     weight: 0.3,
-    reason: "Perfect 4-space indentation consistency",
+    reason: "Includes shebang line typical of AI-generated scripts",
     aiIndicator: true
   },
   
   // Human indicators
   
-  // Debug prints left in code
+  // Debug console logs left in code
   {
-    pattern: /print\s*\(\s*(?!["']Original:|["']Sorted:)/gi,
+    pattern: /console\.log\((?!.*Result:|.*Error:|.*Usage:)/g,
     weight: 0.6,
-    reason: "Contains debug print statements",
+    reason: "Contains debug console.log statements",
     aiIndicator: false
   },
   
   // TODO/FIXME comments (humans leave these)
   {
-    pattern: /(TODO|FIXME|HACK|XXX|BUG):/gi,
-    weight: 0.8,
+    pattern: /(TODO|FIXME|HACK|XXX):/gi,
+    weight: 0.7,
     reason: "Contains TODO/FIXME comments indicating human planning",
     aiIndicator: false
   },
   
-  // Casual comments without perfect grammar
+  // Terse or minimal comments
   {
-    pattern: /#\s*[a-z][^.A-Z]*$/gm,
-    weight: 0.4,
-    reason: "Contains casual comments typical of human code",
+    pattern: /\/\/\s*[a-z][^.]*$/gm,
+    weight: 0.3,
+    reason: "Contains short, terse comments typical of human code",
     aiIndicator: false
   },
   
-  // Abbreviated or lazy variable names
+  // Abbreviated variable names
   {
-    pattern: /\b(i|j|k|n|x|y|z|tmp|temp|val|res|data|item)\b/g,
-    weight: 0.3,
-    reason: "Uses short variable names common in human code",
+    pattern: /\b(btn|txt|img|nav|auth|cfg|opts|params|ctx|req|res|db|api|temp|tmp|val|str|num|arr|obj)\b/gi,
+    weight: 0.4,
+    reason: "Uses abbreviated variable names common in human code",
     aiIndicator: false
   },
   
   // Inconsistent spacing or formatting
   {
-    pattern: /\s{5,}|[a-zA-Z]\s{2,}[a-zA-Z]|\t\s|\s\t/g,
-    weight: 0.6,
+    pattern: /\s{3,}(?!\s*\/\/)|[;}]\s*[;}]|\t\s+|\s+\t/g,
+    weight: 0.5,
     reason: "Has inconsistent spacing typical of human editing",
     aiIndicator: false
   },
   
-  // Quick and dirty solutions without explanation
+  // Quick and dirty solutions (missing error handling)
   {
-    pattern: /\w+\[\w+\]\s*=\s*\w+\[\w+\]/g,
+    pattern: /\[[^\]]*\]\.map\(|\.filter\(|\.reduce\(/g,
     weight: 0.2,
-    reason: "Direct assignments without explanatory comments",
+    reason: "Uses functional programming without extensive validation",
     aiIndicator: false
-  },
-  
-  // Hardcoded values typical of human testing
-  {
-    pattern: /\[.*64.*25.*12.*22.*11.*\]/g,
-    weight: 0.4,
-    reason: "Contains hardcoded test values",
-    aiIndicator: true
   }
 ];
 
@@ -344,80 +311,7 @@ function isCreativeHumanCode(line: string): boolean {
   return creativePatterns.some(pattern => pattern.test(content));
 }
 
-function getConfidenceLevel(confidence: number, isAI: boolean): 'Strongly AI' | 'Moderate AI' | 'Likely AI' | 'Uncertain' | 'Likely Human' | 'Strongly Human' {
-  if (isAI) {
-    if (confidence >= 0.85) return 'Strongly AI';
-    if (confidence >= 0.7) return 'Moderate AI';
-    if (confidence >= 0.6) return 'Likely AI';
-    return 'Uncertain';
-  } else {
-    if (confidence >= 0.85) return 'Strongly Human';
-    if (confidence >= 0.7) return 'Likely Human';
-    return 'Uncertain';
-  }
-}
-
-function detectAIBlocks(lineAnalysis: LineAnalysis[]): AIBlock[] {
-  const blocks: AIBlock[] = [];
-  let currentBlock: { start: number; end: number; isAI: boolean; confidences: number[]; reasons: Set<string> } | null = null;
-
-  for (let i = 0; i < lineAnalysis.length; i++) {
-    const line = lineAnalysis[i];
-    
-    // Skip empty lines for block detection
-    if (!line.content.trim()) continue;
-
-    if (currentBlock && currentBlock.isAI === line.isAI) {
-      // Continue current block
-      currentBlock.end = i + 1;
-      currentBlock.confidences.push(line.confidence);
-      line.reasons.forEach(reason => currentBlock!.reasons.add(reason));
-    } else {
-      // Save previous block if it exists and has meaningful content
-      if (currentBlock && currentBlock.confidences.length >= 2) {
-        const avgConfidence = currentBlock.confidences.reduce((a, b) => a + b, 0) / currentBlock.confidences.length;
-        const confidenceLevel = getConfidenceLevel(avgConfidence, currentBlock.isAI);
-        
-        blocks.push({
-          startLine: currentBlock.start,
-          endLine: currentBlock.end,
-          confidenceLevel,
-          confidence: avgConfidence,
-          reasons: Array.from(currentBlock.reasons)
-        });
-      }
-
-      // Start new block
-      currentBlock = {
-        start: i + 1,
-        end: i + 1,
-        isAI: line.isAI,
-        confidences: [line.confidence],
-        reasons: new Set(line.reasons)
-      };
-    }
-  }
-
-  // Don't forget the last block
-  if (currentBlock && currentBlock.confidences.length >= 2) {
-    const avgConfidence = currentBlock.confidences.reduce((a, b) => a + b, 0) / currentBlock.confidences.length;
-    const confidenceLevel = getConfidenceLevel(avgConfidence, currentBlock.isAI);
-    
-    blocks.push({
-      startLine: currentBlock.start,
-      endLine: currentBlock.end,
-      confidenceLevel,
-      confidence: avgConfidence,
-      reasons: Array.from(currentBlock.reasons)
-    });
-  }
-
-  return blocks;
-}
-
 function applyContextualAnalysis(lineAnalysis: LineAnalysis[]): void {
-  // Enhanced contextual analysis with stronger AI detection
-  
   // Apply sandwiching rule: if a line is between AI lines, mark it as AI unless it's clearly creative human code
   for (let i = 1; i < lineAnalysis.length - 1; i++) {
     const currentLine = lineAnalysis[i];
@@ -432,13 +326,13 @@ function applyContextualAnalysis(lineAnalysis: LineAnalysis[]): void {
       // Check if it's genuinely creative human code
       if (!isCreativeHumanCode(currentLine.content)) {
         currentLine.isAI = true;
-        currentLine.confidence = Math.max(currentLine.confidence, 0.8);
+        currentLine.confidence = Math.max(currentLine.confidence, 0.7);
         currentLine.reasons.push("Line sandwiched between AI-generated code blocks");
       }
     }
   }
   
-  // Enhanced block analysis: look for consecutive AI patterns
+  // Apply block analysis: look for consecutive AI patterns
   let consecutiveAICount = 0;
   for (let i = 0; i < lineAnalysis.length; i++) {
     const line = lineAnalysis[i];
@@ -450,16 +344,12 @@ function applyContextualAnalysis(lineAnalysis: LineAnalysis[]): void {
     
     if (line.isAI) {
       consecutiveAICount++;
-      // Boost confidence for lines in AI blocks
-      if (consecutiveAICount >= 3) {
-        line.confidence = Math.min(line.confidence + 0.1, 0.95);
-      }
     } else {
       // If we have a human line after many AI lines, check if it's likely part of the AI block
-      if (consecutiveAICount >= 2 && !isCreativeHumanCode(line.content)) {
+      if (consecutiveAICount >= 3 && !isCreativeHumanCode(line.content)) {
         // Look ahead to see if AI pattern continues
         let aiContinues = false;
-        for (let j = i + 1; j < Math.min(i + 4, lineAnalysis.length); j++) {
+        for (let j = i + 1; j < Math.min(i + 3, lineAnalysis.length); j++) {
           if (lineAnalysis[j].content.trim() && lineAnalysis[j].isAI) {
             aiContinues = true;
             break;
@@ -468,7 +358,7 @@ function applyContextualAnalysis(lineAnalysis: LineAnalysis[]): void {
         
         if (aiContinues) {
           line.isAI = true;
-          line.confidence = Math.max(line.confidence, 0.75);
+          line.confidence = Math.max(line.confidence, 0.6);
           line.reasons.push("Part of extended AI-generated code block");
         }
       }
@@ -504,9 +394,6 @@ export async function analyzeCode(code: string, language: string): Promise<Analy
   // Apply contextual analysis to improve accuracy
   applyContextualAnalysis(lineAnalysis);
   
-  // Detect AI blocks for enhanced visualization
-  const aiBlocks = detectAIBlocks(lineAnalysis);
-  
   // Calculate statistics
   const nonEmptyLines = lineAnalysis.filter(l => l.content.trim());
   const aiLines = nonEmptyLines.filter(l => l.isAI).length;
@@ -528,7 +415,6 @@ export async function analyzeCode(code: string, language: string): Promise<Analy
     aiPercentage,
     humanPercentage,
     overallConfidence,
-    lineAnalysis,
-    aiBlocks
+    lineAnalysis
   };
 }
