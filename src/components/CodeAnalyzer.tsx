@@ -3,12 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, User, Zap, AlertTriangle, CheckCircle } from "lucide-react";
+import { Brain, User, Zap, AlertTriangle, CheckCircle, Github, FileCode } from "lucide-react";
 import { analyzeCode } from "@/lib/aiDetection";
+import { analyzeGitHubRepository } from "@/lib/githubAnalyzer";
 import type { AnalysisResult } from "@/lib/aiDetection";
+import type { RepositoryAnalysis } from "@/lib/githubAnalyzer";
 
 const SUPPORTED_LANGUAGES = [
   { value: "javascript", label: "JavaScript" },
@@ -24,18 +27,35 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 export function CodeAnalyzer() {
+  const [mode, setMode] = useState<"code" | "github">("code");
   const [code, setCode] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [repoAnalysis, setRepoAnalysis] = useState<RepositoryAnalysis | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0, file: "" });
 
   const handleAnalyze = async () => {
-    if (!code.trim()) return;
+    if (mode === "code" && !code.trim()) return;
+    if (mode === "github" && !githubUrl.trim()) return;
     
     setIsAnalyzing(true);
+    setProgress({ current: 0, total: 0, file: "" });
+    
     try {
-      const result = await analyzeCode(code, language);
-      setAnalysis(result);
+      if (mode === "code") {
+        const result = await analyzeCode(code, language);
+        setAnalysis(result);
+        setRepoAnalysis(null);
+      } else {
+        const result = await analyzeGitHubRepository(
+          githubUrl,
+          (current, total, file) => setProgress({ current, total, file })
+        );
+        setRepoAnalysis(result);
+        setAnalysis(null);
+      }
     } catch (error) {
       console.error("Analysis failed:", error);
     } finally {
@@ -73,48 +93,235 @@ export function CodeAnalyzer() {
             AI Code Detection
           </CardTitle>
           <CardDescription>
-            Paste your code below to analyze which lines are AI-generated vs human-written
+            Analyze code snippets or entire GitHub repositories for AI vs human patterns
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Programming Language</label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="bg-code-bg border-code-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SUPPORTED_LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
+          <Tabs value={mode} onValueChange={(value) => setMode(value as "code" | "github")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="code" className="flex items-center gap-2">
+                <FileCode className="w-4 h-4" />
+                Code Snippet
+              </TabsTrigger>
+              <TabsTrigger value="github" className="flex items-center gap-2">
+                <Github className="w-4 h-4" />
+                GitHub Repository
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="code" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Programming Language</label>
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger className="bg-code-bg border-code-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <SelectItem key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={handleAnalyze} 
+                    disabled={!code.trim() || isAnalyzing}
+                    className="w-full"
+                  >
+                    {isAnalyzing ? "Analyzing..." : "Analyze Code"}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Code Input</label>
+                <Textarea
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Paste your code here..."
+                  className="min-h-[300px] font-mono text-sm bg-code-bg border-code-border"
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="github" className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">GitHub Repository URL</label>
+                <Input
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repository"
+                  className="bg-code-bg border-code-border"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter a public GitHub repository URL to analyze all code files
+                </p>
+              </div>
+              
               <Button 
                 onClick={handleAnalyze} 
-                disabled={!code.trim() || isAnalyzing}
+                disabled={!githubUrl.trim() || isAnalyzing}
                 className="w-full"
               >
-                {isAnalyzing ? "Analyzing..." : "Analyze Code"}
+                {isAnalyzing ? "Analyzing Repository..." : "Analyze Repository"}
               </Button>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Code Input</label>
-            <Textarea
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Paste your code here..."
-              className="min-h-[300px] font-mono text-sm bg-code-bg border-code-border"
-            />
-          </div>
+              
+              {isAnalyzing && progress.total > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress: {progress.current} / {progress.total}</span>
+                    <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+                  </div>
+                  <Progress value={(progress.current / progress.total) * 100} className="h-2" />
+                  {progress.file && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      Analyzing: {progress.file}
+                    </p>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
+
+      {repoAnalysis && (
+        <div className="space-y-6">
+          {/* Repository Overview */}
+          <Card className="border-code-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Github className="w-5 h-5 text-primary" />
+                Repository Analysis
+              </CardTitle>
+              <CardDescription>
+                {repoAnalysis.repositoryUrl}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <Brain className="w-4 h-4 text-ai" />
+                        AI Generated
+                      </span>
+                      <span className="text-sm font-bold text-ai">
+                        {Math.round(repoAnalysis.overallStats.aiPercentage)}%
+                      </span>
+                    </div>
+                    <Progress value={repoAnalysis.overallStats.aiPercentage} className="h-2" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <User className="w-4 h-4 text-human" />
+                        Human Written
+                      </span>
+                      <span className="text-sm font-bold text-human">
+                        {Math.round(repoAnalysis.overallStats.humanPercentage)}%
+                      </span>
+                    </div>
+                    <Progress value={repoAnalysis.overallStats.humanPercentage} className="h-2" />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">Total Files:</span> {repoAnalysis.totalFiles}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">Analyzed Files:</span> {repoAnalysis.analyzedFiles}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">Total Lines:</span> {repoAnalysis.overallStats.totalLines}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">AI Lines:</span> {repoAnalysis.overallStats.aiLines}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">Human Lines:</span> {repoAnalysis.overallStats.humanLines}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">Overall Confidence:</span> {Math.round(repoAnalysis.overallStats.overallConfidence * 100)}%
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* File-by-file Analysis */}
+          <Card className="border-code-border">
+            <CardHeader>
+              <CardTitle>File Analysis</CardTitle>
+              <CardDescription>
+                Analysis results for each file in the repository
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {repoAnalysis.files.map((file, index) => (
+                  <div
+                    key={index}
+                    className="p-4 rounded-lg border border-code-border bg-card/50 hover:bg-card transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FileCode className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-mono text-sm font-medium">{file.path}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {file.language}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getConfidenceBadge(file.analysis.overallConfidence, file.analysis.aiLines > file.analysis.humanLines)}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Total Lines:</span>
+                        <div className="font-medium">{file.analysis.totalLines}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">AI Lines:</span>
+                        <div className="font-medium text-ai">{file.analysis.aiLines}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Human Lines:</span>
+                        <div className="font-medium text-human">{file.analysis.humanLines}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-ai">AI: {Math.round(file.analysis.aiPercentage)}%</span>
+                        <span className="text-human">Human: {Math.round(file.analysis.humanPercentage)}%</span>
+                      </div>
+                      <div className="flex gap-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="bg-ai transition-all" 
+                          style={{ width: `${file.analysis.aiPercentage}%` }}
+                        />
+                        <div 
+                          className="bg-human transition-all" 
+                          style={{ width: `${file.analysis.humanPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {analysis && (
         <div className="space-y-6">
