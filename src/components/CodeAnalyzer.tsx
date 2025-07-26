@@ -381,6 +381,76 @@ export function CodeAnalyzer() {
             </CardContent>
           </Card>
 
+          {/* AI Blocks */}
+          {analysis.aiBlocks && analysis.aiBlocks.length > 0 && (
+            <Card className="border-code-border">
+              <CardHeader>
+                <CardTitle>AI Code Blocks</CardTitle>
+                <CardDescription>
+                  Detected blocks of AI-generated code with confidence levels
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {analysis.aiBlocks.map((block, index) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-lg border transition-colors ${
+                        block.confidenceLevel.includes('AI') 
+                          ? 'border-ai/30 bg-ai/5' 
+                          : 'border-human/30 bg-human/5'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {block.confidenceLevel.includes('AI') ? (
+                            <Brain className="w-4 h-4 text-ai" />
+                          ) : (
+                            <User className="w-4 h-4 text-human" />
+                          )}
+                          <span className="font-medium text-sm">
+                            Lines {block.startLine}-{block.endLine}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              block.confidenceLevel.includes('AI') 
+                                ? 'border-ai text-ai' 
+                                : 'border-human text-human'
+                            }`}
+                          >
+                            {block.confidenceLevel}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {Math.round(block.confidence * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground">
+                        <div className="space-y-1">
+                          {block.reasons.slice(0, 3).map((reason, reasonIndex) => (
+                            <div key={reasonIndex} className="flex items-start gap-1">
+                              <span className="text-primary">•</span>
+                              <span>{reason}</span>
+                            </div>
+                          ))}
+                          {block.reasons.length > 3 && (
+                            <div className="text-muted-foreground/70">
+                              +{block.reasons.length - 3} more reasons...
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Line-by-line Analysis */}
           <Card className="border-code-border">
             <CardHeader>
